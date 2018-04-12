@@ -1,52 +1,60 @@
 (ns reagent-native.core
-  (:require ["react-native" :as ReactNative]
-            [reagent.core :as r])
-  (:require-macros
-   [reagent.interop :refer [$]]))
+  (:require [reagent.core :as r]
+            [clojure.string]))
 
-(def reagent<-  r/adapt-react-class)
+(def node? (.-title js/process)) ;; null for React Native
+(def ReactNative (when-not node? (js/require "react-native")))
+
+(defn r<-
+  [k]
+  (if node?
+    k
+    (r/adapt-react-class
+     (apply
+      aget ReactNative
+      (clojure.string/split (name k) ".")))))
 
 ;; React Native Components
-(def activity-indicator (reagent<- ($ ReactNative :ActivityIndicator)))
-(def button (reagent<- ($ ReactNative :Button)))
-(def date-picker-ios (reagent<- ($ ReactNative :DatePickerIOS)))
-(def drawer-layout-android (reagent<- ($ ReactNative :DrawerLayoutAndroid)))
-(def flat-list (reagent<- ($ ReactNative :FlatList)))
-(def image (reagent<- ($ ReactNative :Image)))
-#_(def input-accessory-view (reagent<- ($ ReactNative :InputAccessoryView)))
-(def keyboard-avoiding-view (reagent<- ($ ReactNative :KeyboardAvoidingView)))
-(def list-view (reagent<- ($ ReactNative :ListView)))
-(def masked-view-ios (reagent<- ($ ReactNative :MaskedViewIOS)))
-(def modal (reagent<- ($ ReactNative :Modal)))
-(def navigator-ios (reagent<- ($ ReactNative :NavigatorIOS)))
-(def picker (reagent<- ($ ReactNative :Picker)))
-(def picker-ios (reagent<- ($ ReactNative :PickerIOS)))
-(def progress-bar-android (reagent<- ($ ReactNative :ProgressBarAndroid)))
-(def progress-view-ios (reagent<- ($ ReactNative :ProgressViewIOS)))
-(def refresh-control (reagent<- ($ ReactNative :RefreshControl)))
-(def safe-area-view (reagent<- ($ ReactNative :SafeAreaView)))
-(def scroll-view (reagent<- ($ ReactNative :ScrollView)))
-(def section-list (reagent<- ($ ReactNative :SectionList)))
-(def segmented-control-ios (reagent<- ($ ReactNative :SegmentedControlIOS)))
-(def slider (reagent<- ($ ReactNative :Slider)))
-(def snapshot-view-ios (reagent<- ($ ReactNative :SnapshotViewIOS)))
-(def status-bar (reagent<- ($ ReactNative :StatusBar)))
-(def switch (reagent<- ($ ReactNative :Switch)))
-(def tab-bar-ios (reagent<- ($ ReactNative :TabBarIOS)))
-(def tab-bar-ios-item (reagent<- ($ ReactNative :TabBarIOS.Item)))
-(def view (reagent<- ($ ReactNative :View)))
-(def text-input (reagent<- ($ ReactNative :TextInput)))
-(def toolbar-android (reagent<- ($ ReactNative :ToolbarAndroid)))
-(def touchable-highlight (reagent<- ($ ReactNative :TouchableHighlight)))
+(def activity-indicator (r<- :ActivityIndicator))
+(def button (r<- :Button))
+(def date-picker-ios (r<- :DatePickerIOS))
+(def drawer-layout-android (r<- :DrawerLayoutAndroid))
+(def flat-list (r<- :FlatList))
+(def image (r<- :Image))
+#_(def input-accessory-view (r<- :InputAccessoryView))
+(def keyboard-avoiding-view (r<- :KeyboardAvoidingView))
+(def list-view (r<- :ListView))
+(def masked-view-ios (r<- :MaskedViewIOS))
+(def modal (r<- :Modal))
+(def navigator-ios (r<- :NavigatorIOS))
+(def picker (r<- :Picker))
+(def picker-ios (r<- :PickerIOS))
+(def progress-bar-android (r<- :ProgressBarAndroid))
+(def progress-view-ios (r<- :ProgressViewIOS))
+(def refresh-control (r<- :RefreshControl))
+(def safe-area-view (r<- :SafeAreaView))
+(def scroll-view (r<- :ScrollView))
+(def section-list (r<- :SectionList))
+(def segmented-control-ios (r<- :SegmentedControlIOS))
+(def slider (r<- :Slider))
+(def snapshot-view-ios (r<- :SnapshotViewIOS))
+(def status-bar (r<- :StatusBar))
+(def switch (r<- :Switch))
+(def tab-bar-ios (r<- :TabBarIOS))
+(def tab-bar-ios-item (r<- :TabBarIOS.Item))
+(def view (r<- :View))
+(def text-input (r<- :TextInput))
+(def toolbar-android (r<- :ToolbarAndroid))
+(def touchable-highlight (r<- :TouchableHighlight))
 (def touchable-native-feedback
-  (reagent<- ($ ReactNative :TouchableNativeFeedback)))
-(def touchable-opacity (reagent<- ($ ReactNative :TouchableOpacity)))
+  (r<- :TouchableNativeFeedback))
+(def touchable-opacity (r<- :TouchableOpacity))
 (def touchable-without-feedback
-  (reagent<- ($ ReactNative :TouchableWithoutFeedback)))
-(def text (reagent<- ($ ReactNative :Text)))
-(def view-pager-android (reagent<- ($ ReactNative :ViewPagerAndroid)))
-(def virtualized-list (reagent<- ($ ReactNative :VirtualizedList)))
-(def web-view (reagent<- ($ ReactNative :WebView)))
+  (r<- :TouchableWithoutFeedback))
+(def text (r<- :Text))
+(def view-pager-android (r<- :ViewPagerAndroid))
+(def virtualized-list (r<- :VirtualizedList))
+(def web-view (r<- :WebView))
 
 
 (defonce counter (r/atom 1))
@@ -60,7 +68,6 @@
    main app component, with the name of your app."
   [name component]
   (let [reloading-component (fn [] @counter [component @counter])]
-    ($ ReactNative
-       AppRegistry.registerComponent
-       name
-       #(r/reactify-component reloading-component))))
+    ((aget ReactNative "AppRegistry" "registerComponent") 
+     name
+     #(r/reactify-component reloading-component))))
