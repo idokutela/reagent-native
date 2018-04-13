@@ -1,7 +1,10 @@
 # React Native, `reagent` and `shadow-cljs`
 
-A super simple way to develop react native apps with clojurescript, or
-add clojurescript modules to existing react-native projects.
+A super simple way to develop react native apps with clojurescript and
+reagent, or add clojurescript modules to existing react-native
+projects.
+
+If you prefer `rum`, go [here](https://github.com/idokutela/rum-native).
 
 ## Why?
 
@@ -21,7 +24,7 @@ you haven’t already. With `yarn`, that goes as follows:
 
 Clone the repo:
 
-    git clone https://github.com/idokutela/rum-native.git
+    git clone https://github.com/idokutela/reagent-native.git
 	
 Make a folder to contain your own clojurescript source:
 
