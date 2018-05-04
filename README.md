@@ -25,7 +25,7 @@ you haven’t already. With `yarn`, that goes as follows:
 Clone the repo:
 
     git clone https://github.com/idokutela/reagent-native.git
-	
+
 Make a folder to contain your own clojurescript source:
 
     mkdir src
@@ -74,17 +74,17 @@ Below is a complete app:
 (ns app.core
   (:require [reagent-native.core :as rn]
             [reagent.core :as r])
-		
-(def styles 
+
+(def styles
   {:main {:flex 1
           :flex-direction :column
 		  :justify-content :center
 		  :align-items :center}
    :text {:font-size 20}}
-   
+
 (defn result
   [val]
-  (rn/text {:style (:text styles)} 
+  (rn/text {:style (:text styles)}
     "You’ve clicked " val (if (= 1 val) " time." " times.")))
 
 (defn app
@@ -93,10 +93,10 @@ Below is a complete app:
     (fn []
 	  [rn/view {:style (:main styles)}
 	    [result @cnt]
-		[rn/button 
+		[rn/button
 		 {:on-press #(swap! cnt inc)
 		  :title "Click me!"}]])))
-    
+
 (defn init [] rn/register-component "MyApp" app)
 ```
 
@@ -114,6 +114,8 @@ import "./lib/main";
 ```
 
 ### Hot reloading
+**Warning, buggy.**
+
 To make hot-reloading work, one needs to tell reagent explicitly to
 rerender on reload. The easiest way to do so is to `accept` the
 `react-native.core/reload!` function in the `module.hot` hot reaload
@@ -124,15 +126,18 @@ hook (as described [here](https://facebook.github.io/react-native/blog/2016/03/2
 (ns main
   (:require [app.core :refer [init]]
             [reagent-native.core :refer [reload!]]))
-			
+
 (when-some [hot (.-hot js/module)]
   (.accept hot reload!))
-  
+
 (init)
 ```
 
 ## Development workflow
-Unfortunately, it’s 
+**Stubbing is unfortunately difficult with the latest metro bundle.
+For now, it's disabled.**
+
+Unfortunately, it’s
 [unlikely](https://github.com/thheller/shadow-cljs/issues/214) a repl
 will be working any time soon.
 
@@ -141,12 +146,12 @@ targets:
 
  - app, as above
  - dev, which builds a node module.
- 
+
 The latter can happily be loaded and used in repl based
 development. Even better, the nature of reagent components is that
 they are simply functions to vectors, so one can test them without a
 heavy emulator.
-   
+
 ## What doesn’t work
 - I don't yet know how to get a working repl.
 - Source maps are messed up. Unfortunately, there’s not much that will
@@ -154,7 +159,7 @@ heavy emulator.
 - This is deliberately not on clojars: it's completely experimental,
   and likely to change quite a bit.
 - I have yet to see how well this builds to production.
-  
+
 ## References
 
  - [`re-natal`](https://github.com/drapanjanas/re-natal): an excellent
@@ -163,7 +168,7 @@ heavy emulator.
    their work.
  - [`shadow-cljs`](https://github.com/drapanjanas/re-natal): a lovely
    way to build clojurescript
- - [`reagent`](https://github.com/reagent-project/reagent): 
+ - [`reagent`](https://github.com/reagent-project/reagent):
    a clean react cljs library.
 
 ## License
@@ -171,4 +176,3 @@ heavy emulator.
 Public domain: you're free to do whatever you want with this. However,
 I accept no liability for the use you put it to, nor make any claim
 that it is fit for any purpose.
-
