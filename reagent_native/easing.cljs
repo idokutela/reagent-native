@@ -1,0 +1,22 @@
+(ns reagent-native.easing
+  [:require [reagent-native.core :as r]])
+
+(def Easing (r/$ r/ReactNative :Easing))
+
+(def step0 ($ Easing :step0))
+(def step1 ($ Easing :step1))
+(def linear ($ Easing :linear))
+(def ease ($ Easing :ease))
+(def quad ($ Easing :quad))
+(def cubic ($ Easing :cubic))
+(def poly ($ Easing :poly))
+(def sin ($ Easing :sin))
+(def circle ($ Easing :circle))
+(def exp ($ Easing :exp))
+(def elastic ($ Easing :elastic))
+(def back ($ Easing :back))
+(def bounce ($ Easing :bounce))
+(def bezier ($ Easing :bezier))
+(def in ($ Easing :in))
+(def out ($ Easing :out))
+(def in-out ($ Easing :in-out))

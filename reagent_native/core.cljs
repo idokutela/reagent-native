@@ -1,37 +1,8 @@
 (ns reagent-native.core
   (:require [reagent.core :as r]
-            [cljs.spec.alpha :as spec]
-            [clojure.string]))
-
-(def react? (not (aget js/process "title"))) ;; null for React Native
-
-(defn require-rn
-  "Requires the given `module` when in the react native environment.
-
-   The module name can be given as a keyword or a string.  If in the
-   node environment, replaces it with `stub`. By default `stub` is an
-   empty js object.
-
-   If used in combination with `def`, it's a good idea to make the
-   def'd variable dynamic, so that one can stub parts in testing.
-
-   Example usage:
-  
-       (def ^:dynamic some-module
-         (require-rn :some-module :stub #js {:foo #()}))"
-  
-  [module & {:keys [stub] :or [stub #js {}]}]
-  (let [module-name (if (keyword? module)
-                      (name module)
-                      module)]
-    (if react?
-      (js/require module-name)
-      stub)))
-
-(s/def ::string-or-kw (s/or :string string? :keyword keyword?))
-(s/fdef require-rn
-        :args (s/cat :module-name ::string-or-kw :rest (s/keys* :opt-un [:stub any?]))
-        :ret any?)
+            [cljs.spec.alpha :as s]
+            [clojure.string]
+            ["react-native" :as ReactNative]))
 
 (defn- split-on-dots
   "Splits the keyword on dots.
@@ -42,25 +13,6 @@
   [kw]
   (if (string? kw) '(kw)
       (clojure.string/split (name kw) ".")))
-
-(defn- get-stub
-  "Applied to rest args, extracts a stub.
-
-   Returns the args except the stub, and default-stub if no stub is
-   specified.
-
-   Eg.
-   (get-stub '(1 2 3) :bar) ; ['(1 2 3) :bar]
-   (get-stub '(1 :stub 4) :bat) ; ['(1) 4]
-   (get-stub '(1 3 :stub) :bam) ; NB! ['(1 3 :stub) :bam]"
-  [args default-stub]
-  (let [last-two (take-last 2 args)
-        stub? (and (= 2 (count last-two))
-                   (= :stub (first last-two)))
-        stub (if stub? (last last-two) default-stub)
-        args (if stub? (drop-last args 2) args)]
-    [args stub]))
-        
 
 (defn $
   "Safely accesses a member of a js object in the react environment.
@@ -86,34 +38,44 @@
 
    ; in node
    ($ js/console :log \"Hello, world!\") ; => :log
+  b
    ($ js/exports :hot.accept :stub (fn [& args])) ; => (fn [& args])
    (= 2 ($ #js {:foo 2} :foo)) ; => :foo
   "
   [obj accessor & args]
   (let [access-path (split-on-dots accessor)
-        [args stub] (get-stub args)
-        item (if react? (apply aget obj access-path) stub)
-        apply? (and (count? args) react?)]
-    (if apply?
-      (apply item args)
-      item)))
+        item (apply aget obj access-path)
+        get? (zero? (count args))]
+    (if get?
+      item
+      (apply item args))))
 
 (s/fdef $
         :args (s/cat :obj any? :accessor ::string-or-kw :args (s/* any?))
         :ret any?)
-        
 
-(def ^:dynamic ReactNative (require-rn :react-native))  
+
+(def dimensions (js->clj ($ ReactNative :Dimensions.get "window") :keywordize-keys true))
+(def width (:width dimensions))
+(def height (:height dimensions))
+(def vw (/ width 100))
+(def vh (/ height 100))
+
+(def platform
+  (if (= "ios" ($ ReactNative :Platform.OS))
+    :ios
+    :android))
+
+
 
 (defn r<-
   [k]
-  (if react?
-    (r/adapt-react-class ($ ReactNative k))
-    k))
+  (r/adapt-react-class ($ ReactNative k)))
+
 
 (s/fdef r<-
         :args (s/cat :accessor ::string-or-kw)
-        :ret any?)             
+        :ret any?)
 
 
 ;; React Native Components
@@ -158,7 +120,6 @@
 (def virtualized-list (r<- :VirtualizedList))
 (def web-view (r<- :WebView))
 
-
 (defonce counter (r/atom 1))
 
 (defn reload!
@@ -172,6 +133,6 @@
    main app component, with the name of your app."
   [name component]
   (let [reloading-component (fn [] @counter [component @counter])]
-    ((aget ReactNative "AppRegistry" "registerComponent") 
+    ((aget ReactNative "AppRegistry" "registerComponent")
      name
      #(r/reactify-component reloading-component))))
