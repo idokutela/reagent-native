@@ -1,8 +1,8 @@
-(ns reagent-native.animated
+(ns reagent-native.animations
   "Adapts ReactNative.Animated to reagent."
-  (:require [clojure.core :exclude [+ - * / mod]]
-            [cljs.core.async :as async]
+  (:require [cljs.core.async :as async]
             [clojure.core.async.impl.protocols :refer [ReadPort Channel]]
+            ["react-native" :as ReactNative]
             [reagent-native.core :as r]
             [reagent-native.easing :as ease]
             [reagent.core :as reagent]))
@@ -42,35 +42,35 @@
 
 ;;; Basic components
 
-(def Animated (r/$ r/ReactNative :Animated))
+(def Animated (r/$ ReactNative :Animated))
 
 (def view (r/r<- :Animated.View))
 (def scroll-view (r/r<- :Animated.ScrollView))
 (def text (r/r<- :Animated.Text))
-(def image (r/r<- :Aminated.Image))
+(def image (r/r<- :Animated.Image))
 
 (defn animated<-
   "Turns a component into an animated reagent component."
   [component]
-  (let [create-animated-component ($ Animated :createAnimatedComponent)])
-  (-> component
-      create-animated-component
-      reagent/adapt-react-class))
+  (let [create-animated-component (r/$ Animated :createAnimatedComponent)]
+    (-> component
+        create-animated-component
+        reagent/adapt-react-class)))
 
-(def ^:private Value ($ Animated :Value))
-(def ^:private ValueXY ($ Animated :ValueXY))
+(def ^:private Value (r/$ Animated :Value))
+(def ^:private ValueXY (r/$ Animated :ValueXY))
 
 ;;; Values
 
 (defn scalar<-
   "Creates an animated scalar. Defaults to zero."
-  ([] (<-val 0))
+  ([] (scalar<- 0))
   ([initial] (Value. initial)))
 
 
 (defn vector<-
   "Creates an animated vector. Defautls to (0,0)."
-  ([] (<- val-xy 0 0))
+  ([] (vector<- 0 0))
   ([x y] (ValueXY. x y)))
 
 
@@ -82,15 +82,15 @@
   `false` otherwise."
   [animation]
   (let [done (async/chan)]
-    ($ animation :start #(async/put! done %))
+    (.start animation #(async/put! done %))
     (async/go
       (-> (async/<! done)
-          ($ :finished)))))
+          .-finished))))
 
 (defn stop!
   "Stops an animation."
-  []
-  (($ animation :stop)))
+  [animation]
+  (.stop animation))
 
 
 (defn stop-animation!
@@ -99,33 +99,32 @@
   If the final value is a pair, placed as a vector [x y]."
   [val]
   (let [done (async/chan)]
-    ($ :stopAnimation #(async/put! done %))
+    (.stopAnimation val #(async/put! done %))
     (async/go
       (let [r (async/<! done)]
         (if (number? r)
           r
-          [($ r :x) ($ r :y)])))))
+          [(.-x r) (.-y r)])))))
 
 
-(defn xy? [x] (instance? ValueXY (first x)))
+(defn xy? [& x] (instance? ValueXY (first x)))
 
 (defrecord EventStream [ch owner listener]
   ReadPort
-  (take! [s fn] (take! ch listener))
+  (take! [s fn] (clojure.core.async.impl.protocols/take! ch fn))
 
   Channel
   (close! [x]
-    ($ owner :removeListener listener)
-    (async/close! ch))
+    (.removeListener owner listener)
+    (clojure.core.async.impl.protocols/close! ch))
   (closed? [x] (clojure.core.async.impl.protocols/closed? ch)))
 
-(defmulti x-form xy?
-  [& args])
+(defmulti x-form xy?)
 
 (defmethod x-form true [v]
-  (fn [xy] [($ xy :x) ($ xy :y)]))
+  (fn [xy] (-> xy .-value [(.-x xy) (.-y xy)])))
 
-(defmethod x-form false [v] identity)
+(defmethod x-form false [v] (fn [x] (.-value x)))
 
 
 (defn subscribe
@@ -137,12 +136,13 @@
   [v]
   (let [out-ch (async/chan (async/sliding-buffer 1000))
         in-ch (async/chan (async/sliding-buffer 1000))
-        listener ($ v :addListener #(async/put! in-ch %))
-        x<- (x-form v)])
-  (async/go-loop [x (async/<! in-ch)]
-    (when x
-      (async/>! out-ch (x<- x))))
-  (->EventStream out-ch v listener))
+        listener (.addListener v #(async/put! in-ch %))
+        x<- (x-form v)]
+    (async/go-loop []
+      (when-some [x (async/<! in-ch)]
+        (async/>! out-ch (x<- x))
+        (recur)))
+    (->EventStream out-ch v listener)))
 
 
 ;;; Config animations
@@ -169,23 +169,26 @@
   "Creates a new animated value that interpolates another.
 
   Example: (interpolate x :<-range [0 1] :->range [0 100] :extrapolate :clamp)"
-  [& args] xy?)
+  xy?)
 
 
 (defmethod interpolate false
-  [val & {:keys <-range ->range easing extrapolate extrapolate-left extrapolate-right}]
-  ($ val :interpolate
+  [val & {:keys [<-range ->range
+                 easing
+                 extrapolate extrapolate-left extrapolate-right]}]
+  (.interpolate val
      (clj->js
       {:inputRange <-range
        :outputRange ->range
-       :easing easing
+
        :extrapolate extrapolate
        :extrapolateLeft extrapolate-left
        :extrapolateRight extrapolate-right})))
 
 (defmethod interpolate true
-  [val & {:keys <-range ->range easing extrapolate extrapolate-left extrapolate-right}]
-  ($ val :interpolate
+  [val & {:keys [<-range ->range easing
+                 extrapolate extrapolate-left extrapolate-right]}]
+  (.interpolate val
      (clj->js
       {:inputRange (xy<-ranges <-range)
        :outputRange (xy<-ranges ->range)
@@ -199,7 +202,7 @@
   "Animates `val` to decay. One must speciify the :velocity argument.
 
   Other optional arguments are `deceleration` `interaction?` and `native?`."
-  [& args] xy?)
+  xy?)
 
 (defmethod decay false
   [val & {:keys [velocity
@@ -207,10 +210,10 @@
                  interaction?
                  native?
                  value<-]
-          :or [deceleration 0.997
+          :or {deceleration 0.997
                interaction? true
-               native? false]}]
-  ($ Animated :decay val
+               native? false}}]
+  (r/$ Animated :decay val
      #js {:toValue value<-
           :velocity velocity
           :deceleration deceleration
@@ -223,10 +226,10 @@
                  interaction?
                  native?
                  value<-]
-          :or [deceleration 0.997
+          :or {deceleration 0.997
                interaction? true
-               native? false]}]
-  ($ Animated :decay val
+               native? false}}]
+  (r/$ Animated :decay val
      #js {:toValue (xy<- value<-)
           :velocity (xy<- velocity)
           :deceleration (xy<- deceleration)
@@ -240,7 +243,7 @@
 
   Optional arguments are `duration`, `easing`, `delay`, `interaction?`
   and `native?`."
-  [& args] xy?)
+  xy?)
 
 (defmethod timing false
   [val & {:keys [value<- duration easing delay interaction? native?]
@@ -249,13 +252,13 @@
                delay 0
                interaction? true
                native? false}}]
-  ($ Animated :timing val
+  (r/$ Animated :timing val
      #js {:toValue value<-
           :duration duration
           :easing easing
           :delay delay
           :isInteraction interaction?
-          :useNativeDriver use-native-driver}))
+          :useNativeDriver native?}))
 
 (defmethod timing true
   [val & {:keys [value<- duration easing delay interaction? native?]
@@ -264,13 +267,13 @@
                delay 0
                interaction? true
                native? false}}]
-  ($ Animated :timing val
+  (r/$ Animated :timing val
      #js {:toValue (xy<- value<-)
           :duration (xy<- duration)
           :easing (xy<- easing)
           :delay (xy<- delay)
           :isInteraction interaction?
-          :useNativeDriver use-native-driver}))
+          :useNativeDriver native?}))
 
 
 (defmulti spring
@@ -281,25 +284,26 @@
   `stiffness`, `damping` and `mass`. One may also specify `velocity`,
   `overshoot-clamping`, `rest-displacement-threshold`, `rest-speed-threshold`,
   `interaction?` and `native?`."
-  [& args] xy?)
+  xy?)
 
 (defmethod spring false
-  [val $ {:keys [value<-
-                 friction tension speed bounciness
-                 stiffness damping mass
-                 velocity overshoot-clamping rest-displacement-threshold
-                 rest-speed-threshold interaction? native?]
-          :or {friction 7
-               tension 40
-               speed 12
-               bounciness 8
-               velocity 0
-               overshoot-clamping false
-               rest-displacement-threshold 0.001
-               rest-speed-threshold 0.001
-               delay 0
-               interaction? true
-               native? false}}]
+  [val &
+   {:keys [value<-
+           friction tension speed bounciness
+           stiffness damping mass
+           velocity overshoot-clamping rest-displacement-threshold
+           rest-speed-threshold interaction? native?]
+    :or {friction 7
+         tension 40
+         speed 12
+         bounciness 8
+         velocity 0
+         overshoot-clamping false
+         rest-displacement-threshold 0.001
+         rest-speed-threshold 0.001
+         delay 0
+         interaction? true
+         native? false}}]
   (let [props (if stiffness
                 #js {:toValue value<-
                      :stiffness stiffness
@@ -322,25 +326,26 @@
                      :restSpeedThreshold rest-speed-threshold
                      :isInteraction interaction?
                      :useNativeDriver native?})]
-    ($ Animated :spring val props)))
+    (r/$ Animated :spring val props)))
 
 (defmethod spring true
-  [val $ {:keys [value<-
-                 friction tension speed bounciness
-                 stiffness damping mass
-                 velocity overshoot-clamping rest-displacement-threshold
-                 rest-speed-threshold interaction? native?]
-          :or {friction 7
-               tension 40
-               speed 12
-               bounciness 8
-               velocity 0
-               overshoot-clamping false
-               rest-displacement-threshold 0.001
-               rest-speed-threshold 0.001
-               delay 0
-               interaction? true
-               native? false}}]
+  [val &
+   {:keys [value<-
+           friction tension speed bounciness
+           stiffness damping mass
+           velocity overshoot-clamping rest-displacement-threshold
+           rest-speed-threshold interaction? native?]
+    :or {friction 7
+         tension 40
+         speed 12
+         bounciness 8
+         velocity 0
+         overshoot-clamping false
+         rest-displacement-threshold 0.001
+         rest-speed-threshold 0.001
+         delay 0
+         interaction? true
+         native? false}}]
   (let [props (if stiffness
                 #js {:toValue (xy<- value<-)
                      :stiffness (xy<- stiffness)
@@ -363,57 +368,57 @@
                      :restSpeedThreshold (xy<- rest-speed-threshold)
                      :isInteraction interaction?
                      :useNativeDriver native?})]
-    ($ Animated :spring val props)))
+    (r/$ Animated :spring val props)))
 
 
 ;;; Arithmetic
 
-(defn +
+(defn add
   "Adds any number of animated values.
 
   Arity 0 returns the zero scalar."
 
   ([] (scalar<-))
   ([x0] x0)
-  ([x0 x1] ($ Animated :add x0 x1))
-  ([x0 x1 x2] (+ (+ x0 x1) x2))
-  ([x0 x1 x2 x3] (+ (+ x0 x1 x2) x3))
-  ([x0 x1 x2 x3 x4] (+ (+ x0 x1 x2 x3) x4))
+  ([x0 x1] (r/$ Animated :add x0 x1))
+  ([x0 x1 x2] (add (add x0 x1) x2))
+  ([x0 x1 x2 x3] (add (add x0 x1 x2) x3))
+  ([x0 x1 x2 x3 x4] (add (add x0 x1 x2 x3) x4))
   ([x0 x1 x2 x3 x4 & xs]
-   (reduce + (+ x0 x1 x2 x3 x4) xs)))
+   (reduce add (add x0 x1 x2 x3 x4) xs)))
 
 
-(defn *
+(defn mul
   "Multiplies any number of animated values.
 
   Arity 0 returns the unit scalar."
   ([] (scalar<- 1))
   ([x0] x0)
-  ([x0 x1] ($ Animated :multiply x0 x1))
-  ([x0 x1 x2] (* (* x0 x1) x2))
-  ([x0 x1 x2 x3] (* (* x0 x1 x2) x3))
-  ([x0 x1 x2 x3 x4] (* (* x0 x1 x2 x3) x4))
-  ([x0 x1 x2 x3 x4 xs] (reduce * (* x0 x1 x2 x3 x4) xs)))
+  ([x0 x1] (r/$ Animated :multiply x0 x1))
+  ([x0 x1 x2] (mul (mul x0 x1) x2))
+  ([x0 x1 x2 x3] (mul (mul x0 x1 x2) x3))
+  ([x0 x1 x2 x3 x4] (mul (mul x0 x1 x2 x3) x4))
+  ([x0 x1 x2 x3 x4 xs] (reduce mul (mul x0 x1 x2 x3 x4) xs)))
 
 
-(defn -
+(defn sub
   "Subtracts any positive number of animated values."
-  ([x0] (* (scalar<- -1) x0))
-  ([x0 x1] (+ x0 (- x1)))
-  ([x0 x1 xs] (+ (x0 (- (apply + x1 xs))))))
+  ([x0] (sub (scalar<- -1) x0))
+  ([x0 x1] (add x0 (sub x1)))
+  ([x0 x1 xs] (add (x0 (sub (apply add x1 xs))))))
 
 
-(defn /
+(defn div
   "Divides any *positive* number of animated values."
   ([x0] x0)
-  ([x0 x1] ($ Animated :divide x0 x1))
-  ([x0 x1 xs] (/ x0 (apply * x1 xs))))
+  ([x0 x1] (r/$ Animated :divide x0 x1))
+  ([x0 x1 xs] (div x0 (apply mul x1 xs))))
 
 
-(defn mod
+(defn modulo
   "Takes the modulus of two animated values."
   [num div]
-  ($ Animated :modulo num div))
+  (r/$ Animated :modulo num div))
 
 
 (defmulti diff-clamp
@@ -422,31 +427,31 @@
    It uses the difference between the last stationary value and the current,
    so that even if the value is far from the bounds it will start changing
    when the value starts moving closer again."
-  [& args] xy?)
+  xy?)
 
 (defmethod diff-clamp false
   [v min max]
-  ($ Animated :diffClamp v min max))
+  (r/$ Animated :diffClamp v min max))
 
 (defmethod diff-clamp true
   [v min max]
-  ($ Animated :diffClamp v (xy<- min) (xy<- max)))
+  (r/$ Animated :diffClamp v (xy<- min) (xy<- max)))
 
 
 ;;; Sequencing
 
-(defn delay
+(defn delay-by
   "Starts an animation after a given time."
   [t]
-  ($ Animated :delay t))
+  (r/$ Animated :delay t))
 
 
-(defn sequence
+(defn consecutive
   "Starts a collection of `animations` in order.
 
   If the current animation is stopped, later animations will not be started."
   [animations]
-  ($ Animated :sequence (js-array<- animations)))
+  (r/$ Animated :sequence (js-array<- animations)))
 
 
 (defn parallel
@@ -459,22 +464,22 @@
   (let [config? (if (some? stop-together)
                   #js {:stopTogether stop-together}
                   nil)]
-    ($ Animated :parallel (js-array<- animations) config?)))
+    (r/$ Animated :parallel (js-array<- animations) config?)))
 
 
 (defn stagger
   "Starts a collection of animations successively with a delay."
   [t animations]
-  ($ Animated :stagger t (js-array<- animations)))
+  (r/$ Animated :stagger t (js-array<- animations)))
 
 
-(defn loop
+(defn anim-loop
   "Loops a given animation indefinitely.
 
    Optional arguments: iterations, native?
    interactive?."
   [animation & {:keys [iterations]}]
-  ($ Animated :loop animation
+  (r/$ Animated :loop animation
      #js {:iterations iterations}))
 
 
@@ -486,7 +491,7 @@
    Note, the config is a clojurescript map. Keys can be spit or
    camelcase."
   [mapping & {:keys [native? listener]}]
-  ($ Animated :event (clj->rejs mapping)
+  (r/$ Animated :event (clj->rejs mapping)
      #js {:useNativeDriver native?
           :listener listener}))
 
@@ -494,7 +499,7 @@
 (defn scroll-x
   "A performant event handler that places the scroll offset x into `x`."
   [x & {:keys [native? listener]}]
-  ($ Animated :event
+  (r/$ Animated :event
      #js [#js {:nativeEvent #js {:contentOffset #js {:x x}}}]
      #js {:listener listener
           :useNativeDriver native?}))
@@ -503,7 +508,7 @@
 (defn scroll-y
   "A performant event handler that places the scroll offset y into `y`."
   [y & {:keys [native? listener]}]
-  ($ Animated :event
+  (r/$ Animated :event
      #js [#js {:nativeEvent #js {:contentOffset #js {:y y}}}]
      #js {:listener listener
           :useNativeDriver native?}))
@@ -512,19 +517,19 @@
 (defn scroll-xy
   "An event handler that places the scroll offset into an animated vector a pair `x` `y`."
   [x y & {:keys [native? listener]}]
-  ($ Animated :event
+  (r/$ Animated :event
      #js [#js {:nativeEvent #js {:contentOffset #js {:x x :y y}}}]
      #js {:listener listener
           :useNativeDriver native?}))
 
 
-(defn pan-respoder
+(defn pan-responder
   "An event handler that places a pan-responder key into the corresponding var.
 
    Example: (pan-responder {:dx x} :native? true)"
   [{:keys [dx dy move-x move-y x0 y0 vx vy]}
    & {:keys [native? listener]}]
-  ($ Animated :event
+  (r/$ Animated :event
      #js [nil
           #js {:dx dx
                :dy dy

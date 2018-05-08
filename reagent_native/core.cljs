@@ -4,6 +4,7 @@
             [clojure.string]
             ["react-native" :as ReactNative]))
 
+
 (defn- split-on-dots
   "Splits the keyword on dots.
 
