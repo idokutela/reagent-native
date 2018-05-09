@@ -55,6 +55,16 @@
         :args (s/cat :obj any? :accessor ::string-or-kw :args (s/* any?))
         :ret any?)
 
+(def back-handler ($ ReactNative :BackHandler))
+(defn on-back-press
+  [f]
+  (.addEventListener back-handler "hardwareBackPress" f))
+(defn off-back-press
+  [f]
+  (.removeEventListener back-handler "hardwareBackPress" f))
+(defn exit-app
+  []
+  (.exitApp back-handler))
 
 (def dimensions (js->clj ($ ReactNative :Dimensions.get "window") :keywordize-keys true))
 (def width (:width dimensions))
