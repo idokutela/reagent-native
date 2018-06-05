@@ -103,6 +103,7 @@
 (def modal (r<- :Modal))
 (def navigator-ios (r<- :NavigatorIOS))
 (def picker (r<- :Picker))
+(def picker-item (r<- :Picker.Item))
 (def picker-ios (r<- :PickerIOS))
 (def progress-bar-android (r<- :ProgressBarAndroid))
 (def progress-view-ios (r<- :ProgressViewIOS))
