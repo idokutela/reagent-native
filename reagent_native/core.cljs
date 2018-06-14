@@ -66,11 +66,11 @@
   []
   (.exitApp back-handler))
 
-(def dimensions (js->clj ($ ReactNative :Dimensions.get "window") :keywordize-keys true))
-(def width (:width dimensions))
-(def height (:height dimensions))
-(def vw (/ width 100))
-(def vh (/ height 100))
+(def dimensions #(js->clj ($ ReactNative :Dimensions.get "window") :keywordize-keys true))
+(def width #(:width (dimensions)))
+(def height #(:height (dimensions)))
+(def vw #(/ (width) 100))
+(def vh #(/ (height) 100))
 
 (def platform
   (if (= "ios" ($ ReactNative :Platform.OS))
