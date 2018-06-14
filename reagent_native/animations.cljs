@@ -165,6 +165,21 @@
       (js-array<- p))))
 
 
+(defmulti set-value!
+  "Sets an animated value"
+  xy?)
+
+(defmethod set-value! false
+  [v val]
+  (.setValue v val))
+
+(defmethod set-value! true
+  [v val]
+  (->> val
+       xy<-
+       (.setValue v)))
+
+
 (defmulti interpolate
   "Creates a new animated value that interpolates another.
 
