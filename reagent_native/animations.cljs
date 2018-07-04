@@ -418,7 +418,7 @@
 
 (defn sub
   "Subtracts any positive number of animated values."
-  ([x0] (sub (scalar<- -1) x0))
+  ([x0] (mul -1 x0))
   ([x0 x1] (add x0 (sub x1)))
   ([x0 x1 xs] (add (x0 (sub (apply add x1 xs))))))
 
